@@ -6,41 +6,48 @@ import io
 from datetime import date, timedelta
 import warnings
 
-# --- 1. SELETOR DE TEMAS EM TEMPO DE EXECUÇÃO ---
-# Criamos uma barra lateral discreta para a configuração
+# --- 1. CONFIGURAÇÃO DE TEMAS DINÂMICOS ---
+# Criamos um seletor discreto na barra lateral
 with st.sidebar:
-    st.write("🎨 **Configurações de Visual**")
-    tema_escolhido = st.selectbox(
-        "Escolha o Tema:",
-        ["Padrão (Dark)", "Light Grey", "Steel Blue", "Black & Gold"]
+    st.markdown("### 🎨 Visual")
+    tema = st.selectbox(
+        "Selecione o tom do Workspace:",
+        ["Dark Modern", "Light Professional", "Steel Blue", "Deep Black"]
     )
 
-# Lógica de Cores para cada tema
-temas = {
-    "Padrão (Dark)": {"bg": "#0E1117", "texto": "#FAFAFA", "card": "#262730"},
-    "Light Grey": {"bg": "#F0F2F6", "texto": "#31333F", "card": "#FFFFFF"},
-    "Steel Blue": {"bg": "#1A232E", "texto": "#E0E0E0", "card": "#2D3748"},
-    "Black & Gold": {"bg": "#000000", "texto": "#D4AF37", "card": "#1A1A1A"}
+# Dicionário com as cores de cada tema
+config_temas = {
+    "Dark Modern": {"bg": "#0E1117", "texto": "#FAFAFA", "card": "#262730", "accent": "#FF4B4B"},
+    "Light Professional": {"bg": "#F0F2F6", "texto": "#31333F", "card": "#FFFFFF", "accent": "#007BFF"},
+    "Steel Blue": {"bg": "#1A232E", "texto": "#E0E0E0", "card": "#2D3748", "accent": "#6EB5FF"},
+    "Deep Black": {"bg": "#000000", "texto": "#D4AF37", "card": "#1A1A1A", "accent": "#D4AF37"}
 }
 
-t = temas[tema_escolhido]
+escolha = config_temas[tema]
 
-# Injeção de CSS para mudar as cores em tempo real
+# Injeção de CSS para aplicar o tema em tempo real
 st.markdown(f"""
     <style>
+        /* Fundo principal */
         .stApp {{
-            background-color: {t['bg']};
-            color: {t['texto']};
+            background-color: {escolha['bg']};
+            color: {escolha['texto']};
         }}
+        /* Cabeçalho superior */
         [data-testid="stHeader"] {{
             background-color: rgba(0,0,0,0);
         }}
+        /* Estilo dos Cards (Anotações e Recados) */
         .st-emotion-cache-12w0qpk {{
-            background-color: {t['card']};
+            background-color: {escolha['card']} !important;
+            border: 1px solid {escolha['accent']}33 !important;
+        }}
+        /* Cor dos textos de labels e inputs */
+        .stMarkdown, p, label {{
+            color: {escolha['texto']} !important;
         }}
     </style>
     """, unsafe_allow_html=True)
-warnings.filterwarnings('ignore', category=UserWarning)
 
 # ------------------------------------------------
 # 1. CONFIGURAÇÃO DO BANCO DE DADOS
