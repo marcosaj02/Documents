@@ -47,33 +47,29 @@ st.title("📋 Meu Workspace Pessoal")
 aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anotações", "📊 Dashboard"])
 
 # ==========================================
-# ABA 1: TAREFAS (Ajustada para Tab Horizontal)
+# ABA 1: TAREFAS (Correção Definitiva do Tab)
 # ==========================================
 with aba1:
     st.subheader("Adicionar Nova Tarefa")
     
-    # PRIMEIRA LINHA: Cliente, Descrição e Status
-    linha1_col1, linha1_col2, linha1_col3 = st.columns(3)
-    with linha1_col1:
-        cliente = st.text_input("Cliente")
-    with linha1_col2:
-        descricao = st.text_input("Descrição da Tarefa")
-    with linha1_col3:
-        status = st.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"])
+    # --- LINHA 1 (Horizontal) ---
+    col1_l1, col2_l1, col3_l1 = st.columns(3)
+    with col1_l1:
+        cliente = st.text_input("Cliente", key="input_cliente")
+    with col2_l1:
+        descricao = st.text_input("Descrição da Tarefa", key="input_desc")
+    with col3_l1:
+        status = st.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
 
-    # SEGUNDA LINHA: Responsável, Data e Motivo (se bloqueado)
-    linha2_col1, linha2_col2, linha2_col3 = st.columns(3)
-    with linha2_col1:
-        responsavel = st.text_input("Responsável")
-    with linha2_col2:
-        data_entrega = st.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY")
-    with linha2_col3:
-        # Se o status for bloqueado, o campo aparece aqui na terceira coluna da segunda linha
-        motivo = st.text_input("Motivo do Bloqueio") if status == "Bloqueado" else ""
-            
-    if st.button("Salvar Tarefa", type="primary"):
-        # ... (mantenha sua lógica de INSERT aqui)
-        # Lembre-se de usar o st.rerun() no final para limpar os campos
+    # --- LINHA 2 (Horizontal) ---
+    col1_l2, col2_l2, col3_l2 = st.columns(3)
+    with col1_l2:
+        responsavel = st.text_input("Responsável", key="input_resp")
+    with col2_l2:
+        data_entrega = st.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
+    with col3_l2:
+        # O campo motivo só aparece se o status for Bloqueado
+        motivo = st.text_input("Motivo do Bloqueio", key="input_motivo") if status == "Bloqueado" else ""
 
 # ==========================================
 # ABA 2: RECADOS
