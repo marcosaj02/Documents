@@ -47,30 +47,28 @@ st.title("📋 Meu Workspace Pessoal")
 aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anotações", "📊 Dashboard"])
 
 # ==========================================
-# ABA 1: TAREFAS (Correção Definitiva do Tab)
+# ABA 1: TAREFAS (Ordem de Tab Horizontal Forçada)
 # ==========================================
 with aba1:
     st.subheader("Adicionar Nova Tarefa")
     
-    # --- LINHA 1 (Horizontal) ---
-    col1_l1, col2_l1, col3_l1 = st.columns(3)
-    with col1_l1:
-        cliente = st.text_input("Cliente", key="input_cliente")
-    with col2_l1:
-        descricao = st.text_input("Descrição da Tarefa", key="input_desc")
-    with col3_l1:
-        status = st.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
+    # --- LINHA 1 ---
+    c1, c2, c3 = st.columns(3)
+    # Ao criar os inputs assim, o navegador segue a ordem exata do código
+    cliente = c1.text_input("Cliente", key="input_cliente")
+    descricao = c2.text_input("Descrição da Tarefa", key="input_desc")
+    status = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
 
-    # --- LINHA 2 (Horizontal) ---
-    col1_l2, col2_l2, col3_l2 = st.columns(3)
-    with col1_l2:
-        responsavel = st.text_input("Responsável", key="input_resp")
-    with col2_l2:
-        data_entrega = st.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
-    with col3_l2:
-        # O campo motivo só aparece se o status for Bloqueado
-        motivo = st.text_input("Motivo do Bloqueio", key="input_motivo") if status == "Bloqueado" else ""
-
+    # --- LINHA 2 ---
+    c4, c5, c6 = st.columns(3)
+    responsavel = c4.text_input("Responsável", key="input_resp")
+    data_entrega = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
+    
+    # Motivo aparece na terceira coluna da segunda linha se bloqueado
+    motivo = ""
+    if status == "Bloqueado":
+        motivo = c6.text_input("Motivo do Bloqueio", key="input_motivo")
+        
 # ==========================================
 # ABA 2: RECADOS
 # ==========================================
