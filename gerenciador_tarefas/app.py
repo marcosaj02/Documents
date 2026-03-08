@@ -6,6 +6,40 @@ import io
 from datetime import date, timedelta
 import warnings
 
+# --- 1. SELETOR DE TEMAS EM TEMPO DE EXECUÇÃO ---
+# Criamos uma barra lateral discreta para a configuração
+with st.sidebar:
+    st.write("🎨 **Configurações de Visual**")
+    tema_escolhido = st.selectbox(
+        "Escolha o Tema:",
+        ["Padrão (Dark)", "Light Grey", "Steel Blue", "Black & Gold"]
+    )
+
+# Lógica de Cores para cada tema
+temas = {
+    "Padrão (Dark)": {"bg": "#0E1117", "texto": "#FAFAFA", "card": "#262730"},
+    "Light Grey": {"bg": "#F0F2F6", "texto": "#31333F", "card": "#FFFFFF"},
+    "Steel Blue": {"bg": "#1A232E", "texto": "#E0E0E0", "card": "#2D3748"},
+    "Black & Gold": {"bg": "#000000", "texto": "#D4AF37", "card": "#1A1A1A"}
+}
+
+t = temas[tema_escolhido]
+
+# Injeção de CSS para mudar as cores em tempo real
+st.markdown(f"""
+    <style>
+        .stApp {{
+            background-color: {t['bg']};
+            color: {t['texto']};
+        }}
+        [data-testid="stHeader"] {{
+            background-color: rgba(0,0,0,0);
+        }}
+        .st-emotion-cache-12w0qpk {{
+            background-color: {t['card']};
+        }}
+    </style>
+    """, unsafe_allow_html=True)
 warnings.filterwarnings('ignore', category=UserWarning)
 
 # ------------------------------------------------
