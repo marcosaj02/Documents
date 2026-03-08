@@ -16,11 +16,11 @@ def inicializar_db():
     conn = conectar()
     c = conn.cursor()
     
-    # 1. Tabela de Usuários (AGORA COM EMAIL)
+    # 1. Tabela de Usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE,
-                    email TEXT UNIQUE,  -- Nova coluna
+                    email TEXT UNIQUE,
                     senha TEXT,
                     nome TEXT)''')
 
@@ -67,7 +67,6 @@ def criar_usuario(username, email, senha, nome):
         conn.commit()
         return "Sucesso"
     except sqlite3.IntegrityError as e:
-        # Verifica qual campo deu erro de duplicidade
         erro = str(e)
         if "username" in erro:
             return "Erro: Este usuário já existe."
@@ -79,25 +78,20 @@ def criar_usuario(username, email, senha, nome):
 
 def verificar_login(username, senha):
     conn = conectar()
-    # Tenta logar tanto por Username quanto por Email
     res = conn.execute("SELECT id, nome FROM usuarios WHERE (username = ? OR email = ?) AND senha = ?", 
                        (username, username, hash_senha(senha))).fetchone()
     conn.close()
-    return res # Retorna (id, nome) ou None
+    return res
 
 def recuperar_senha(email):
-    """Simula o envio de e-mail (retorna True se o email existe)"""
     conn = conectar()
     res = conn.execute("SELECT username FROM usuarios WHERE email = ?", (email,)).fetchone()
     conn.close()
-    
     if res:
-        # AQUI ENTRARIA A INTEGRAÇÃO COM SERVIDOR DE EMAIL (SMTP)
-        # Como ainda não temos servidor, vamos retornar uma mensagem de sucesso simulada.
-        return True, res[0] # Retorna True e o nome de usuário
+        return True, res[0]
     return False, None
 
-# --- DEMAIS FUNÇÕES FINANCEIRAS (MANTIDAS IGUAIS) ---
+# --- FUNÇÕES FINANCEIRAS ---
 def processar_recorrencias(user_id):
     conn = conectar()
     c = conn.cursor()
@@ -110,13 +104,13 @@ def processar_recorrencias(user_id):
         rec_id, nome, valor, dia, cat, tipo, ativo, data_limite, uid = rec
         
         if data_limite:
-            data_lim_obj = datetime.strptime(data_limite, "%Y-%m-%d").date()
+            data_lim_obj = datetime.strptime(str(data_limite)[:10], "%Y-%m-%d").date()
             primeiro_dia_mes_atual = date(hoje.year, hoje.month, 1)
             if primeiro_dia_mes_atual > data_lim_obj:
                 continue
 
         try:
-            data_vencimento = f"{mes_atual}-{dia:02d}"
+            data_vencimento = f"{mes_atual}-{int(dia):02d}"
         except:
             from calendar import monthrange
             ultimo = monthrange(hoje.year, hoje.month)[1]
@@ -158,21 +152,81 @@ def ler_recorrencias(user_id):
 def atualizar_recorrencias(user_id, df_novo):
     conn = conectar()
     c = conn.cursor()
-    registros = df_novo.to_dict('records')
     
+    if 'id' in df_novo.columns:
+        ids_mantidos = df_novo['id'].dropna().astype(int).tolist()
+        if ids_mantidos:
+            marcadores = ','.join('?' * len(ids_mantidos))
+            c.execute(f"DELETE FROM recorrencias WHERE user_id = ? AND id NOT IN ({marcadores})", [user_id] + ids_mantidos)
+        else:
+            c.execute("DELETE FROM recorrencias WHERE user_id = ?", (user_id,))
+
+    registros = df_novo.to_dict('records')
     for row in registros:
-        ativo_int = 1 if row['ativo'] == True else 0
+        ativo_int = 1 if row.get('ativo') == True else 0
+        data_lim = row.get('data_limite')
+        if pd.isna(data_lim): 
+            data_lim = None
+        else:
+            data_lim = str(data_lim)[:10]
+            
         if pd.isna(row.get('id')):
              c.execute("""
                 INSERT INTO recorrencias (nome, valor, dia_vencimento, categoria, tipo, ativo, data_limite, user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (row['nome'], row['valor'], row['dia_vencimento'], row['categoria'], row['tipo'], ativo_int, row['data_limite'], user_id))
+            """, (row['nome'], row['valor'], row['dia_vencimento'], row['categoria'], row['tipo'], ativo_int, data_lim, user_id))
         else:
              c.execute("""
                 UPDATE recorrencias 
                 SET nome = ?, valor = ?, dia_vencimento = ?, categoria = ?, tipo = ?, ativo = ?, data_limite = ?
                 WHERE id = ? AND user_id = ?
             """, (row['nome'], row['valor'], row['dia_vencimento'], row['categoria'], row['tipo'], 
-                  ativo_int, row['data_limite'], row['id'], user_id))
+                  ativo_int, data_lim, row['id'], user_id))
+    conn.commit()
+    conn.close()
+
+def confirmar_transacao(transacao_id, data_real):
+    conn = conectar()
+    conn.execute("UPDATE transacoes SET status = 'Pago', data = ? WHERE id = ?", (data_real, transacao_id))
+    conn.commit()
+    conn.close()
+
+# --- NOVA FUNÇÃO: ATUALIZAR/EXCLUIR TRANSAÇÕES MANUAIS ---
+def atualizar_transacoes(user_id, df_novo):
+    conn = conectar()
+    c = conn.cursor()
+    
+    # 1. DELETAR AS LINHAS QUE FORAM EXCLUÍDAS NA TELA
+    if 'id' in df_novo.columns:
+        ids_mantidos = df_novo['id'].dropna().astype(int).tolist()
+        if ids_mantidos:
+            marcadores = ','.join('?' * len(ids_mantidos))
+            c.execute(f"DELETE FROM transacoes WHERE user_id = ? AND id NOT IN ({marcadores})", [user_id] + ids_mantidos)
+        else:
+            c.execute("DELETE FROM transacoes WHERE user_id = ?", (user_id,))
+
+    # 2. INSERIR NOVAS E ATUALIZAR AS EXISTENTES
+    registros = df_novo.to_dict('records')
+    
+    for row in registros:
+        data_val = row.get('data')
+        if pd.isna(data_val):
+            continue 
+        
+        # Garante que a data vá para o SQLite no formato correto YYYY-MM-DD
+        data_str = str(data_val)[:10] 
+        
+        if pd.isna(row.get('id')):
+             c.execute("""
+                INSERT INTO transacoes (data, nome, valor, categoria, tipo, status, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (data_str, row['nome'], row['valor'], row['categoria'], row['tipo'], row['status'], user_id))
+        else:
+             c.execute("""
+                UPDATE transacoes 
+                SET data = ?, nome = ?, valor = ?, categoria = ?, tipo = ?, status = ?
+                WHERE id = ? AND user_id = ?
+            """, (data_str, row['nome'], row['valor'], row['categoria'], row['tipo'], row['status'], row['id'], user_id))
+                  
     conn.commit()
     conn.close()

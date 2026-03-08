@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#820AD1" # Roxo moderno
+backgroundColor = "#FFFFFF" # Fundo branco puro
+secondaryBackgroundColor = "#F0F2F6" # Barra lateral cinza gelo
+textColor = "#31333F" # Texto escuro para leitura
+font = "sans serif"
