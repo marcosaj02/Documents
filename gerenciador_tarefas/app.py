@@ -88,27 +88,85 @@ st.title("📋 Meu Workspace Pessoal")
 aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anotações", "📊 Dashboard"])
 
 # ==========================================
-# ABA 1: TAREFAS (Ordem de Tab Horizontal Forçada)
+# ABA 1: TAREFAS (Com Edição de Dados)
 # ==========================================
 with aba1:
     st.subheader("Adicionar Nova Tarefa")
     
-    # --- LINHA 1 ---
+    # --- FORMULÁRIO DE ADIÇÃO (Linha 1 e 2) ---
     c1, c2, c3 = st.columns(3)
-    # Ao criar os inputs assim, o navegador segue a ordem exata do código
-    cliente = c1.text_input("Cliente", key="input_cliente")
-    descricao = c2.text_input("Descrição da Tarefa", key="input_desc")
-    status = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
-
-    # --- LINHA 2 ---
+    cliente_novo = c1.text_input("Cliente", key="input_cliente")
+    desc_nova = c2.text_input("Descrição da Tarefa", key="input_desc")
+    status_novo = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
     c4, c5, c6 = st.columns(3)
-    responsavel = c4.text_input("Responsável", key="input_resp")
-    data_entrega = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
+    resp_novo = c4.text_input("Responsável", key="input_resp")
+    data_nova = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
     
-    # Motivo aparece na terceira coluna da segunda linha se bloqueado
-    motivo = ""
-    if status == "Bloqueado":
-        motivo = c6.text_input("Motivo do Bloqueio", key="input_motivo")
+    motivo_novo = ""
+    if status_novo == "Bloqueado":
+        motivo_novo = c6.text_input("Motivo do Bloqueio", key="input_motivo")
+
+    if st.button("Salvar Tarefa", type="primary"):
+        if cliente_novo and desc_nova:
+            conn = conectar_banco()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO tarefas (cliente, descricao, data_entrega, responsavel, status, motivo) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (cliente_novo, desc_nova, data_nova, resp_novo, status_novo, motivo_novo))
+            conn.commit()
+            conn.close()
+            st.success("Tarefa salva!")
+            st.rerun()
+
+    st.divider()
+
+    # --- LISTAGEM DE TAREFAS ---
+    conn = conectar_banco()
+    df_tarefas = pd.read_sql_query("SELECT * FROM tarefas ORDER BY id DESC", conn)
+    conn.close()
+
+    if not df_tarefas.empty:
+        st.dataframe(df_tarefas, use_container_width=True, hide_index=True)
+
+        st.subheader("📝 Atualizar / Editar Tarefa")
+        
+        # Criamos um dicionário para facilitar a busca de dados da tarefa selecionada
+        opcoes_tarefas = {f"{row['id']} - {row['descricao']}": row for _, row in df_tarefas.iterrows()}
+        selecao = st.selectbox("Selecione a Tarefa para alterar", options=list(opcoes_tarefas.keys()))
+
+        if selecao:
+            tarefa_atual = opcoes_tarefas[selecao]
+            
+            # Aqui permitimos editar Descrição e Data de Entrega além do Status
+            col_edit1, col_edit2 = st.columns(2)
+            
+            nova_desc_edit = col_edit1.text_input("Editar Descrição", value=tarefa_atual['descricao'])
+            nova_data_edit = col_edit2.date_input("Editar Data de Entrega", value=tarefa_atual['data_entrega'])
+            
+            col_edit3, col_edit4 = st.columns(2)
+            novo_status_edit = col_edit3.selectbox(
+                "Novo Status", 
+                ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"],
+                index=["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"].index(tarefa_atual['status'])
+            )
+            
+            novo_motivo_edit = ""
+            if novo_status_edit == "Bloqueado":
+                novo_motivo_edit = col_edit4.text_input("Novo Motivo", value=tarefa_atual['motivo'] or "")
+
+            if st.button("Atualizar 🔄"):
+                conn = conectar_banco()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE tarefas 
+                    SET descricao = %s, data_entrega = %s, status = %s, motivo = %s
+                    WHERE id = %s
+                """, (nova_desc_edit, nova_data_edit, novo_status_edit, novo_motivo_edit, tarefa_atual['id']))
+                conn.commit()
+                conn.close()
+                st.success(f"Tarefa {tarefa_atual['id']} atualizada!")
+                st.rerun()
         
 # ==========================================
 # ABA 2: RECADOS
