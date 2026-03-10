@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import psycopg2
 import plotly.express as px
-import io
-from datetime import date, timedelta
-import warnings
+from datetime import date
 
-# --- 1. CONFIGURAÇÃO DE TEMAS DINÂMICOS ---
+# --- 1. CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Meu Workspace", page_icon="📋", layout="wide")
+
+# --- 2. CONFIGURAÇÃO DE TEMAS DINÂMICOS ---
 with st.sidebar:
     st.markdown("### 🎨 Visual")
     tema = st.selectbox(
@@ -36,7 +37,7 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # ------------------------------------------------
-# 1. CONFIGURAÇÃO DO BANCO DE DADOS
+# 3. BANCO DE DADOS
 # ------------------------------------------------
 def conectar_banco():
     return psycopg2.connect(st.secrets["DB_URL"])
@@ -66,9 +67,8 @@ def criar_tabelas():
 criar_tabelas()
 
 # ------------------------------------------------
-# 2. INTERFACE
+# 4. INTERFACE PRINCIPAL
 # ------------------------------------------------
-st.set_page_config(page_title="Meu Workspace", page_icon="📋", layout="wide")
 st.title("📋 Meu Workspace Pessoal")
 
 aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anotações", "📊 Dashboard"])
@@ -79,83 +79,84 @@ aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anota
 with aba1:
     st.subheader("Adicionar Nova Tarefa")
     
-    c1, c2, c3 = st.columns(3)
-    cliente_novo = c1.text_input("Cliente", key="input_cliente")
-    desc_nova = c2.text_input("Descrição da Tarefa", key="input_desc")
-    status_novo = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
-    
-    c4, c5, c6 = st.columns(3)
-    resp_novo = c4.text_input("Responsável", key="input_resp")
-    data_nova = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
-    
-    motivo_novo = ""
-    if status_novo == "Bloqueado":
-        motivo_novo = c6.text_input("Motivo do Bloqueio", key="input_motivo")
+    with st.expander("➕ Criar nova tarefa", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        cliente_novo = c1.text_input("Cliente")
+        desc_nova = c2.text_input("Descrição da Tarefa")
+        status_novo = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"])
+        
+        c4, c5, c6 = st.columns(3)
+        resp_novo = c4.text_input("Responsável")
+        data_nova = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY")
+        
+        motivo_novo = ""
+        if status_novo == "Bloqueado":
+            motivo_novo = c6.text_input("Motivo do Bloqueio")
 
-    if st.button("Salvar Tarefa", type="primary"):
-        if cliente_novo and desc_nova:
-            conn = conectar_banco()
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO tarefas (cliente, descricao, data_entrega, responsavel, status, motivo) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (cliente_novo, desc_nova, data_nova, resp_novo, status_novo, motivo_novo))
-            conn.commit()
-            conn.close()
-            st.success("Tarefa salva!")
-            st.rerun()
+        if st.button("Salvar Tarefa", type="primary"):
+            if cliente_novo and desc_nova:
+                conn = conectar_banco()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO tarefas (cliente, descricao, data_entrega, responsavel, status, motivo) 
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (cliente_novo, desc_nova, data_nova, resp_novo, status_novo, motivo_novo))
+                conn.commit()
+                conn.close()
+                st.success("Tarefa salva!")
+                st.rerun()
 
     st.divider()
 
-    # --- LISTAGEM E EDIÇÃO ---
+    # --- LISTAGEM E EDIÇÃO DINÂMICA (O LÁPIS/EDITOR) ---
+    st.subheader("📋 Gerenciar Tarefas")
+    st.info("💡 Você pode editar o Responsável, Data e Status diretamente na tabela abaixo e clicar em 'Salvar Alterações'.")
+
     conn = conectar_banco()
     df_tarefas = pd.read_sql_query("SELECT * FROM tarefas ORDER BY id DESC", conn)
     conn.close()
 
     if not df_tarefas.empty:
-        st.dataframe(df_tarefas, use_container_width=True, hide_index=True)
+        # Configuração do editor de dados
+        df_editado = st.data_editor(
+            df_tarefas,
+            use_container_width=True,
+            hide_index=True,
+            key="editor_tarefas",
+            disabled=["id"], # Não permite editar o ID
+            column_config={
+                "data_entrega": st.column_config.DateColumn("Data de Entrega", format="DD/MM/YYYY"),
+                "status": st.column_config.SelectboxColumn("Status", options=["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"]),
+                "cliente": st.column_config.TextColumn("Cliente"),
+                "responsavel": st.column_config.TextColumn("👤 Responsável"),
+            }
+        )
 
-        st.markdown("### 📝 Editar ou Atualizar Tarefa")
-        
-        # Dicionário para mapear a seleção aos dados
-        opcoes_tarefas = {f"{row['id']} - {row['descricao']}": row for _, row in df_tarefas.iterrows()}
-        selecao = st.selectbox("Selecione a Tarefa para editar:", options=list(opcoes_tarefas.keys()))
-
-        if selecao:
-            tarefa_atual = opcoes_tarefas[selecao]
-            
-            # --- CAMPOS DE EDIÇÃO DINÂMICOS ---
-            col_ed1, col_ed2, col_ed3 = st.columns(3)
-            
-            nova_desc_edit = col_ed1.text_input("Editar Descrição", value=tarefa_atual['descricao'])
-            nova_data_edit = col_ed2.date_input("Editar Data", value=tarefa_atual['data_entrega'])
-            novo_resp_edit = col_ed3.text_input("Editar Responsável", value=tarefa_atual['responsavel'])
-            
-            col_ed4, col_ed5 = st.columns(2)
-            lista_status = ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"]
-            novo_status_edit = col_ed4.selectbox(
-                "Novo Status", 
-                lista_status,
-                index=lista_status.index(tarefa_atual['status']) if tarefa_atual['status'] in lista_status else 0
-            )
-            
-            novo_motivo_edit = ""
-            if novo_status_edit == "Bloqueado":
-                novo_motivo_edit = col_ed5.text_input("Novo Motivo", value=tarefa_atual['motivo'] or "")
-
-            if st.button("Atualizar Dados 🔄"):
+        # Verificar se houve mudanças
+        if st.button("💾 Salvar Alterações na Tabela", type="primary"):
+            try:
                 conn = conectar_banco()
                 cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE tarefas 
-                    SET descricao = %s, data_entrega = %s, responsavel = %s, status = %s, motivo = %s
-                    WHERE id = %s
-                """, (nova_desc_edit, nova_data_edit, novo_resp_edit, novo_status_edit, novo_motivo_edit, tarefa_atual['id']))
+                
+                # O Streamlit detecta as linhas que mudaram através do state
+                for index, row in df_editado.iterrows():
+                    cursor.execute("""
+                        UPDATE tarefas 
+                        SET cliente = %s, descricao = %s, data_entrega = %s, 
+                            responsavel = %s, status = %s, motivo = %s
+                        WHERE id = %s
+                    """, (row['cliente'], row['descricao'], row['data_entrega'], 
+                          row['responsavel'], row['status'], row['motivo'], row['id']))
+                
                 conn.commit()
                 conn.close()
-                st.success(f"Tarefa {tarefa_atual['id']} atualizada com sucesso!")
+                st.success("Todas as alterações foram salvas com sucesso!")
                 st.rerun()
-        
+            except Exception as e:
+                st.error(f"Erro ao salvar: {e}")
+    else:
+        st.write("Nenhuma tarefa encontrada.")
+
 # ==========================================
 # ABA 2: RECADOS
 # ==========================================
@@ -226,11 +227,14 @@ with aba4:
     conn.close()
     if not df_d.empty:
         hoje = date.today()
-        df_d['prazo'] = df_d.apply(lambda r: 'Atrasada' if pd.to_datetime(r['data_entrega']).date() < hoje and r['status'] != 'Concluído' else 'No Prazo', axis=1)
+        # Conversão segura para data
+        df_d['data_entrega'] = pd.to_datetime(df_d['data_entrega']).dt.date
+        df_d['prazo'] = df_d.apply(lambda r: 'Atrasada' if r['data_entrega'] < hoje and r['status'] != 'Concluído' else 'No Prazo', axis=1)
+        
         c1, c2, c3 = st.columns(3)
         c1.metric("🚨 Atrasadas", len(df_d[df_d['prazo'] == 'Atrasada']))
         c2.metric("⏳ Não Iniciadas", len(df_d[df_d['status'] == 'Não Iniciado']))
         c3.metric("✅ Concluídas", len(df_d[df_d['status'] == 'Concluído']))
         
-        fig = px.pie(df_d, names='status', hole=0.4, title="Status Geral")
+        fig = px.pie(df_d, names='status', hole=0.4, title="Status Geral", color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig, use_container_width=True)
