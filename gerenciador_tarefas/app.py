@@ -7,7 +7,6 @@ from datetime import date, timedelta
 import warnings
 
 # --- 1. CONFIGURAÇÃO DE TEMAS DINÂMICOS ---
-# Criamos um seletor discreto na barra lateral
 with st.sidebar:
     st.markdown("### 🎨 Visual")
     tema = st.selectbox(
@@ -15,7 +14,6 @@ with st.sidebar:
         ["Dark Modern", "Light Professional", "Steel Blue", "Deep Black"]
     )
 
-# Dicionário com as cores de cada tema
 config_temas = {
     "Dark Modern": {"bg": "#0E1117", "texto": "#FAFAFA", "card": "#262730", "accent": "#FF4B4B"},
     "Light Professional": {"bg": "#F0F2F6", "texto": "#31333F", "card": "#FFFFFF", "accent": "#007BFF"},
@@ -25,27 +23,15 @@ config_temas = {
 
 escolha = config_temas[tema]
 
-# Injeção de CSS para aplicar o tema em tempo real
 st.markdown(f"""
     <style>
-        /* Fundo principal */
-        .stApp {{
-            background-color: {escolha['bg']};
-            color: {escolha['texto']};
-        }}
-        /* Cabeçalho superior */
-        [data-testid="stHeader"] {{
-            background-color: rgba(0,0,0,0);
-        }}
-        /* Estilo dos Cards (Anotações e Recados) */
+        .stApp {{ background-color: {escolha['bg']}; color: {escolha['texto']}; }}
+        [data-testid="stHeader"] {{ background-color: rgba(0,0,0,0); }}
         .st-emotion-cache-12w0qpk {{
             background-color: {escolha['card']} !important;
             border: 1px solid {escolha['accent']}33 !important;
         }}
-        /* Cor dos textos de labels e inputs */
-        .stMarkdown, p, label {{
-            color: {escolha['texto']} !important;
-        }}
+        .stMarkdown, p, label {{ color: {escolha['texto']} !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -88,16 +74,16 @@ st.title("📋 Meu Workspace Pessoal")
 aba1, aba2, aba3, aba4 = st.tabs(["📌 Tarefas", "🗣️ Recados", "📝 Anotações", "📊 Dashboard"])
 
 # ==========================================
-# ABA 1: TAREFAS (Com Edição de Dados)
+# ABA 1: TAREFAS
 # ==========================================
 with aba1:
     st.subheader("Adicionar Nova Tarefa")
     
-    # --- FORMULÁRIO DE ADIÇÃO (Linha 1 e 2) ---
     c1, c2, c3 = st.columns(3)
     cliente_novo = c1.text_input("Cliente", key="input_cliente")
     desc_nova = c2.text_input("Descrição da Tarefa", key="input_desc")
     status_novo = c3.selectbox("Status", ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"], key="input_status")
+    
     c4, c5, c6 = st.columns(3)
     resp_novo = c4.text_input("Responsável", key="input_resp")
     data_nova = c5.date_input("Data de Entrega", date.today(), format="DD/MM/YYYY", key="input_data")
@@ -121,7 +107,7 @@ with aba1:
 
     st.divider()
 
-    # --- LISTAGEM DE TAREFAS ---
+    # --- LISTAGEM E EDIÇÃO ---
     conn = conectar_banco()
     df_tarefas = pd.read_sql_query("SELECT * FROM tarefas ORDER BY id DESC", conn)
     conn.close()
@@ -129,43 +115,45 @@ with aba1:
     if not df_tarefas.empty:
         st.dataframe(df_tarefas, use_container_width=True, hide_index=True)
 
-        st.subheader("📝 Atualizar / Editar Tarefa")
+        st.markdown("### 📝 Editar ou Atualizar Tarefa")
         
-        # Criamos um dicionário para facilitar a busca de dados da tarefa selecionada
+        # Dicionário para mapear a seleção aos dados
         opcoes_tarefas = {f"{row['id']} - {row['descricao']}": row for _, row in df_tarefas.iterrows()}
-        selecao = st.selectbox("Selecione a Tarefa para alterar", options=list(opcoes_tarefas.keys()))
+        selecao = st.selectbox("Selecione a Tarefa para editar:", options=list(opcoes_tarefas.keys()))
 
         if selecao:
             tarefa_atual = opcoes_tarefas[selecao]
             
-            # Aqui permitimos editar Descrição e Data de Entrega além do Status
-            col_edit1, col_edit2 = st.columns(2)
+            # --- CAMPOS DE EDIÇÃO DINÂMICOS ---
+            col_ed1, col_ed2, col_ed3 = st.columns(3)
             
-            nova_desc_edit = col_edit1.text_input("Editar Descrição", value=tarefa_atual['descricao'])
-            nova_data_edit = col_edit2.date_input("Editar Data de Entrega", value=tarefa_atual['data_entrega'])
+            nova_desc_edit = col_ed1.text_input("Editar Descrição", value=tarefa_atual['descricao'])
+            nova_data_edit = col_ed2.date_input("Editar Data", value=tarefa_atual['data_entrega'])
+            novo_resp_edit = col_ed3.text_input("Editar Responsável", value=tarefa_atual['responsavel'])
             
-            col_edit3, col_edit4 = st.columns(2)
-            novo_status_edit = col_edit3.selectbox(
+            col_ed4, col_ed5 = st.columns(2)
+            lista_status = ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"]
+            novo_status_edit = col_ed4.selectbox(
                 "Novo Status", 
-                ["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"],
-                index=["Não Iniciado", "Iniciado", "Bloqueado", "Concluído"].index(tarefa_atual['status'])
+                lista_status,
+                index=lista_status.index(tarefa_atual['status']) if tarefa_atual['status'] in lista_status else 0
             )
             
             novo_motivo_edit = ""
             if novo_status_edit == "Bloqueado":
-                novo_motivo_edit = col_edit4.text_input("Novo Motivo", value=tarefa_atual['motivo'] or "")
+                novo_motivo_edit = col_ed5.text_input("Novo Motivo", value=tarefa_atual['motivo'] or "")
 
-            if st.button("Atualizar 🔄"):
+            if st.button("Atualizar Dados 🔄"):
                 conn = conectar_banco()
                 cursor = conn.cursor()
                 cursor.execute("""
                     UPDATE tarefas 
-                    SET descricao = %s, data_entrega = %s, status = %s, motivo = %s
+                    SET descricao = %s, data_entrega = %s, responsavel = %s, status = %s, motivo = %s
                     WHERE id = %s
-                """, (nova_desc_edit, nova_data_edit, novo_status_edit, novo_motivo_edit, tarefa_atual['id']))
+                """, (nova_desc_edit, nova_data_edit, novo_resp_edit, novo_status_edit, novo_motivo_edit, tarefa_atual['id']))
                 conn.commit()
                 conn.close()
-                st.success(f"Tarefa {tarefa_atual['id']} atualizada!")
+                st.success(f"Tarefa {tarefa_atual['id']} atualizada com sucesso!")
                 st.rerun()
         
 # ==========================================
